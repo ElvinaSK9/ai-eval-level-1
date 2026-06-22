@@ -90,7 +90,8 @@
       {
         "type": "contains_all",
         "values": [
-          "Paris"
+          "Paris",
+          "PARIS"
         ]
       },
       {

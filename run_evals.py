@@ -12,44 +12,49 @@ from evaluators import evaluate_response
 from model_client import FakeModelClient, OpenRouterClient
 
 
-def load_test_cases(file_path: str) -> list[dict[str, Any]]:
-    """Read test cases from JSON so new tests do not require code changes."""
+def load_test_cases(json_file_path):
+    with open(json_file_path, "r") as file:
+        test_cases = json.load(file)
+    return test_cases
 
-    with open(file_path, "r", encoding="utf-8") as file:
-        return json.load(file)
-
-
-def save_reports(results: list[dict[str, Any]]) -> tuple[Path, Path]:
-    """Save detailed JSON and a simple CSV summary."""
-
+def save_reports(results):
     reports_directory = Path(REPORTS_DIRECTORY)
     reports_directory.mkdir(exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    current_time = datetime.now()
+    # convert the date and time to the text
+    timestamp = current_time.strftime("%Y%m%d_%H%M%S")
 
-    json_path = reports_directory / f"report_{timestamp}.json"
-    csv_path = reports_directory / f"report_{timestamp}.csv"
+    # Create file names
+    json_file_name = "report_" + timestamp + ".json"
+    csv_file_name = "report_" + timestamp + ".csv"
 
-    json_path.write_text(
-        json.dumps(results, ensure_ascii=False, indent=2),
-        encoding="utf-8",
+    json_path = reports_directory / json_file_name
+    csv_path = reports_directory / csv_file_name
+
+    # Convert Python results to JSON text
+    json_text = json.dumps(
+        results,
+        ensure_ascii=False,
+        indent=2
     )
 
-    with csv_path.open("w", encoding="utf-8", newline="") as file:
-        writer = csv.DictWriter(
-            file,
-            fieldnames=["id", "category", "passed", "latency_seconds", "model"],
-        )
-        writer.writeheader()
+    with open(json_path,"w") as json_file:
+        json_file.write(json_text)
+
+    with open(csv_path,"w", newline="") as csv_file:
+        columns = ["id", "category", "passed", "latency_seconds", "model"]
+
+        writer = csv.DictWriter(csv_file, fieldnames=columns)
         for result in results:
-            writer.writerow(
-                {
-                    "id": result["id"],
-                    "category": result["category"],
-                    "passed": result["passed"],
-                    "latency_seconds": result["latency_seconds"],
-                    "model": result["model"],
-                }
-            )
+            csv_row={
+                "id": result["id"],
+                "category": result["category"],
+                "passed": result["passed"],
+                "latency_seconds": result["latency_seconds"],
+                "model": result["model"]
+            }
+
+            writer.writerow(csv_row)
 
     return json_path, csv_path
 
