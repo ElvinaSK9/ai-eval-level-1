@@ -85,7 +85,7 @@ class OpenRouterClient:
 class FakeModelClient:
     """Return predictable responses so the project can run without an API key."""
 
-    def ask(self, prompt: str, temperature: float = 0.0) -> ModelResponse:
+    def ask(self, prompt: str, temperature: float = 0.0):
         prompt_lower = prompt.lower()
 
         if "mars" in prompt_lower:

@@ -4,64 +4,154 @@ from typing import Any
 
 from model_client import ModelResponse
 
+def evaluate_check(response, check):
+    """Check one rule for the model response."""
 
-def evaluate_check(response: ModelResponse, check: dict[str, Any]) -> dict[str, Any]:
-    """Evaluate one rule from a JSON test case."""
-
+    # Get the check type from the test case
     check_type = check["type"]
-    response_lower = response.text.lower()
 
+    # Get the model response text
+    response_text = response.text
+
+    # Convert the response to lowercase
+    # This allows us to compare words without considering capital letters
+    response_lower = response_text.lower()
+
+    # Check that the response is not empty
     if check_type == "non_empty":
-        passed = bool(response.text.strip())
-        details = "Response is not empty."
+        cleaned_response = response_text.strip()
 
+        if cleaned_response != "":
+            passed = True
+            details = "Response is not empty."
+        else:
+            passed = False
+            details = "Response is empty."
+
+    # Check that the response contains all required phrases
     elif check_type == "contains_all":
-        values = [value.lower() for value in check["values"]]
-        missing = [value for value in values if value not in response_lower]
-        passed = not missing
-        details = "All required phrases are present." if passed else f"Missing: {missing}"
+        required_values = check["values"]
+        missing_values = []
 
+        for value in required_values:
+            value_lower = value.lower()
+
+            if value_lower not in response_lower:
+                missing_values.append(value)
+
+        if len(missing_values) == 0:
+            passed = True
+            details = "All required phrases are present."
+        else:
+            passed = False
+            details = f"Missing phrases: {missing_values}"
+
+    # Check that the response contains at least one expected phrase
     elif check_type == "contains_any":
-        values = [value.lower() for value in check["values"]]
-        passed = any(value in response_lower for value in values)
-        details = "At least one expected phrase is present."
+        expected_values = check["values"]
+        found_values = []
 
+        for value in expected_values:
+            value_lower = value.lower()
+
+            if value_lower in response_lower:
+                found_values.append(value)
+
+        if len(found_values) > 0:
+            passed = True
+            details = f"Found expected phrases: {found_values}"
+        else:
+            passed = False
+            details = f"No expected phrases were found: {expected_values}"
+
+    # Check that forbidden phrases are absent
     elif check_type == "forbidden_absent":
-        values = [value.lower() for value in check["values"]]
-        found = [value for value in values if value in response_lower]
-        passed = not found
-        details = "No forbidden phrases were found." if passed else f"Found: {found}"
+        forbidden_values = check["values"]
+        found_forbidden_values = []
 
+        for value in forbidden_values:
+            value_lower = value.lower()
+
+            if value_lower in response_lower:
+                found_forbidden_values.append(value)
+
+        if len(found_forbidden_values) == 0:
+            passed = True
+            details = "No forbidden phrases were found."
+        else:
+            passed = False
+            details = f"Found forbidden phrases: {found_forbidden_values}"
+
+    # Check that the whole response exactly matches the expected value
     elif check_type == "exact_match":
-        expected = check["value"].strip().lower()
-        passed = response.text.strip().lower() == expected
-        details = f"Expected exact value: {check['value']}"
+        expected_value = check["value"]
 
+        cleaned_expected = expected_value.strip().lower()
+        cleaned_response = response_text.strip().lower()
+
+        if cleaned_response == cleaned_expected:
+            passed = True
+            details = "Response exactly matches the expected value."
+        else:
+            passed = False
+            details = (
+                f"Expected: '{expected_value}'. "
+                f"Actual: '{response_text}'."
+            )
+
+    # Check that the response does not contain too many words
     elif check_type == "max_words":
-        word_count = len(response.text.split())
-        passed = word_count <= int(check["value"])
-        details = f"Word count: {word_count}"
+        words = response_text.split()
+        word_count = len(words)
 
+        maximum_words = int(check["value"])
+
+        if word_count <= maximum_words:
+            passed = True
+            details = (
+                f"Word count is {word_count}. "
+                f"Maximum allowed is {maximum_words}."
+            )
+        else:
+            passed = False
+            details = (
+                f"Word count is {word_count}. "
+                f"Maximum allowed is {maximum_words}."
+            )
+
+    # Check that the model responded fast enough
     elif check_type == "latency_under_seconds":
-        limit = float(check["value"])
-        passed = response.latency_seconds <= limit
-        details = f"Latency: {response.latency_seconds:.2f}s; limit: {limit:.2f}s"
+        latency = response.latency_seconds
+        time_limit = float(check["value"])
 
+        if latency <= time_limit:
+            passed = True
+            details = (
+                f"Latency is {latency:.2f} seconds. "
+                f"Limit is {time_limit:.2f} seconds."
+            )
+        else:
+            passed = False
+            details = (
+                f"Latency is {latency:.2f} seconds. "
+                f"Limit is {time_limit:.2f} seconds."
+            )
+
+    # This block runs when the check type is unknown
     else:
         passed = False
         details = f"Unknown check type: {check_type}"
 
-    return {
+    # Return the result of the check
+    result = {
         "type": check_type,
         "passed": passed,
         "details": details,
     }
 
+    return result
 
-def evaluate_response(
-    response: ModelResponse,
-    checks: list[dict[str, Any]],
-) -> dict[str, Any]:
+def evaluate_response(response,checks):
     """Run all configured checks and return one test result."""
 
     check_results = [evaluate_check(response, check) for check in checks]
@@ -69,5 +159,5 @@ def evaluate_response(
 
     return {
         "passed": passed,
-        "checks": check_results,
+        "check_results": check_results,
     }

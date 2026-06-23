@@ -5,7 +5,6 @@ import csv
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 from config import REPORTS_DIRECTORY, TEST_CASES_FILE
 from evaluators import evaluate_response
@@ -20,101 +19,179 @@ def load_test_cases(json_file_path):
 def save_reports(results):
     reports_directory = Path(REPORTS_DIRECTORY)
     reports_directory.mkdir(exist_ok=True)
+
     current_time = datetime.now()
-    # convert the date and time to the text
+
+    # Convert the date and time to text
     timestamp = current_time.strftime("%Y%m%d_%H%M%S")
 
     # Create file names
     json_file_name = "report_" + timestamp + ".json"
     csv_file_name = "report_" + timestamp + ".csv"
 
+    # Create full file paths
     json_path = reports_directory / json_file_name
     csv_path = reports_directory / csv_file_name
 
-    # Convert Python results to JSON text
-    json_text = json.dumps(
-        results,
-        ensure_ascii=False,
-        indent=2
-    )
-
-    with open(json_path,"w") as json_file:
+    # Save results to the JSON file
+    with open(json_path, "w") as json_file:
+        json_text = json.dumps(results, indent=2)
         json_file.write(json_text)
 
-    with open(csv_path,"w", newline="") as csv_file:
-        columns = ["id", "category", "passed", "latency_seconds", "model"]
+    # Save results to the CSV file
+    with open(csv_path, "w", newline="") as csv_file:
+        writer = csv.writer(csv_file)
 
-        writer = csv.DictWriter(csv_file, fieldnames=columns)
+        # Write column names
+        writer.writerow([
+            "id",
+            "category",
+            "passed",
+            "latency_seconds",
+            "model"
+        ])
+
+        # Write test results
         for result in results:
-            csv_row={
-                "id": result["id"],
-                "category": result["category"],
-                "passed": result["passed"],
-                "latency_seconds": result["latency_seconds"],
-                "model": result["model"]
-            }
-
-            writer.writerow(csv_row)
+            writer.writerow([
+                result["id"],
+                result["category"],
+                result["passed"],
+                result["latency_seconds"],
+                result["model"]
+            ])
 
     return json_path, csv_path
 
+def run(mock=False):
+    """Run all AI evaluation tests and return an exit code."""
 
-def run(mock: bool = False) -> int:
-    """Execute all JSON test cases and return a process exit code."""
+    # Choose which model client to use
+    if mock:
+        client = FakeModelClient()
+    else:
+        client = OpenRouterClient()
 
-    client = FakeModelClient() if mock else OpenRouterClient()
+    # Load test cases from the JSON file
     test_cases = load_test_cases(TEST_CASES_FILE)
-    results: list[dict[str, Any]] = []
 
-    print(f"Running {len(test_cases)} AI evaluation tests...")
+    # This list will contain the results of all tests
+    results = []
 
+    number_of_tests = len(test_cases)
+
+    print(f"Running {number_of_tests} AI evaluation tests...")
+
+    # Run every test case
     for test_case in test_cases:
-        print(f"\n{test_case['id']} - {test_case['name']}")
-        response = client.ask(
-            prompt=test_case["prompt"],
-            temperature=float(test_case.get("temperature", 0.0)),
-        )
-        evaluation = evaluate_response(response, test_case["checks"])
+        test_id = test_case["id"]
+        test_name = test_case["name"]
+        prompt = test_case["prompt"]
+        checks = test_case["checks"]
 
+        # Get temperature from the test case.
+        # If temperature is missing, use 0.0.
+        temperature = test_case.get("temperature", 0.0)
+        temperature = float(temperature)
+
+        print(f"\n{test_id} - {test_name}")
+
+        # Send the prompt to the model
+        response = client.ask(
+            prompt=prompt,
+            temperature=temperature,
+        )
+
+        # Check whether the model response meets the test requirements
+        evaluation = evaluate_response(
+            response,
+            checks,
+        )
+
+        # Create a dictionary with information about the test result
         result = {
-            "id": test_case["id"],
-            "name": test_case["name"],
+            "id": test_id,
+            "name": test_name,
             "category": test_case["category"],
-            "prompt": test_case["prompt"],
+            "prompt": prompt,
             "response": response.text,
             "model": response.model,
             "latency_seconds": round(response.latency_seconds, 3),
-            **evaluation,
+            "passed": evaluation["passed"],
+            "check_results": evaluation["check_results"],
         }
+
+        # Add the current result to the list of all results
         results.append(result)
 
-        status = "PASSED" if result["passed"] else "FAILED"
+        # Print whether the test passed or failed
+        if result["passed"]:
+            status = "PASSED"
+        else:
+            status = "FAILED"
+
         print(f"Result: {status}")
         print(f"Response: {response.text}")
 
-    passed_count = sum(result["passed"] for result in results)
-    pass_rate = passed_count / len(results) * 100 if results else 0
+    # Count passed tests
+    passed_count = 0
+
+    for result in results:
+        if result["passed"]:
+            passed_count += 1
+
+    # Calculate the percentage of passed tests
+    if len(results) > 0:
+        pass_rate = passed_count / len(results) * 100
+    else:
+        pass_rate = 0
+
+    # Save test results to JSON and CSV files
     json_path, csv_path = save_reports(results)
 
+    # Print the final summary
     print("\n=== Summary ===")
     print(f"Passed: {passed_count}/{len(results)}")
     print(f"Pass rate: {pass_rate:.1f}%")
     print(f"JSON report: {json_path}")
     print(f"CSV report: {csv_path}")
 
-    return 0 if passed_count == len(results) else 1
+    # Return 0 if all tests passed.
+    # Return 1 if at least one test failed.
+    if passed_count == len(results):
+        return 0
+    else:
+        return 1
 
+def parse_arguments():
+    """Read arguments entered in the terminal."""
 
-def parse_arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run beginner AI evaluation tests.")
+    # Create an object that reads terminal arguments
+    parser = argparse.ArgumentParser(
+        description="Run beginner AI evaluation tests."
+    )
+
+    # Add the optional --mock argument
     parser.add_argument(
         "--mock",
         action="store_true",
-        help="Run without an API key by using predictable fake responses.",
+        help="Use fake model responses instead of the real API.",
     )
-    return parser.parse_args()
+
+    # Read the arguments entered by the user
+    arguments = parser.parse_args()
+
+    return arguments
 
 
+# Run this code only when this file is started directly
 if __name__ == "__main__":
+
+    # Read terminal arguments
     arguments = parse_arguments()
-    raise SystemExit(run(mock=arguments.mock))
+
+    # Run tests
+    exit_code = run(mock=arguments.mock)
+
+    # Finish the program with exit code 0 or 1
+    raise SystemExit(exit_code)
