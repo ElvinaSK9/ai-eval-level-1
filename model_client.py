@@ -24,7 +24,7 @@ class ModelResponse:
 class OpenRouterClient:
     """Send prompts to an OpenRouter model through the REST API."""
 
-    def __init__(self) -> None:
+    def __init__(self):
         if not OPENROUTER_API_KEY:
             raise ValueError(
                 "OPENROUTER_API_KEY is missing. Copy .env.example to .env and add your key."
@@ -36,7 +36,7 @@ class OpenRouterClient:
             "Content-Type": "application/json",
         }
 
-    def ask(self, prompt: str, temperature: float = 0.0) -> ModelResponse:
+    def ask(self, prompt: str, temperature: float = 0.0):
         payload = {
             "model": MODEL_NAME,
             "messages": [{"role": "user", "content": prompt}],

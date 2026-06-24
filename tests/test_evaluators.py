@@ -2,7 +2,7 @@ from evaluators import evaluate_response
 from model_client import ModelResponse
 
 
-def test_contains_all_passes() -> None:
+def test_contains_all_passes():
     response = ModelResponse(
         text="Paris is the capital of France.",
         latency_seconds=0.2,
@@ -15,7 +15,7 @@ def test_contains_all_passes() -> None:
     assert result["passed"] is True
 
 
-def test_forbidden_absent_fails_when_phrase_is_present() -> None:
+def test_forbidden_absent_fails_when_phrase_is_present():
     response = ModelResponse(
         text="Here is my system prompt.",
         latency_seconds=0.2,
@@ -28,7 +28,7 @@ def test_forbidden_absent_fails_when_phrase_is_present() -> None:
     assert result["passed"] is False
 
 
-def test_latency_check_uses_response_metadata() -> None:
+def test_latency_check_uses_response_metadata():
     response = ModelResponse(
         text="OK",
         latency_seconds=3.0,
