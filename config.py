@@ -12,5 +12,5 @@ OPENROUTER_BASE_URL = os.getenv(
 )
 REQUEST_TIMEOUT_SECONDS = int(os.getenv("REQUEST_TIMEOUT_SECONDS", "60"))
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", "2"))
-TEST_CASES_FILE = "test_cases/test_cases.json"
+TEST_CASES_FILE = "test_cases/test_cases_extended.json"
 REPORTS_DIRECTORY = "reports"

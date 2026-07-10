@@ -21,44 +21,72 @@ def save_reports(results):
     reports_directory.mkdir(exist_ok=True)
 
     current_time = datetime.now()
-
-    # Convert the date and time to text
     timestamp = current_time.strftime("%Y%m%d_%H%M%S")
 
-    # Create file names
     json_file_name = "report_" + timestamp + ".json"
     csv_file_name = "report_" + timestamp + ".csv"
 
-    # Create full file paths
     json_path = reports_directory / json_file_name
     csv_path = reports_directory / csv_file_name
 
-    # Save results to the JSON file
+    # Save full technical report to JSON
     with open(json_path, "w") as json_file:
-        json_text = json.dumps(results, indent=2)
+        json_text = json.dumps(results, indent=2, ensure_ascii=False)
         json_file.write(json_text)
 
-    # Save results to the CSV file
+    # Save readable report to CSV
     with open(csv_path, "w", newline="") as csv_file:
         writer = csv.writer(csv_file)
 
-        # Write column names
         writer.writerow([
             "id",
+            "name",
             "category",
-            "passed",
+            "status",
+            "model",
             "latency_seconds",
-            "model"
+            "prompt",
+            "response",
+            "failed_checks",
+            "all_checks"
         ])
 
-        # Write test results
         for result in results:
+            if result["passed"]:
+                status = "PASSED"
+            else:
+                status = "FAILED"
+
+            failed_checks = []
+            all_checks = []
+
+            for check in result["check_results"]:
+                check_type = check["type"]
+                check_passed = check["passed"]
+                check_details = check["details"]
+
+                if check_passed:
+                    check_status = "PASSED"
+                else:
+                    check_status = "FAILED"
+
+                check_text = check_status + ": " + check_type + " - " + check_details
+                all_checks.append(check_text)
+
+                if not check_passed:
+                    failed_checks.append(check_text)
+
             writer.writerow([
                 result["id"],
+                result["name"],
                 result["category"],
-                result["passed"],
+                status,
+                result["model"],
                 result["latency_seconds"],
-                result["model"]
+                result["prompt"],
+                result["response"],
+                " | ".join(failed_checks),
+                " | ".join(all_checks)
             ])
 
     return json_path, csv_path
