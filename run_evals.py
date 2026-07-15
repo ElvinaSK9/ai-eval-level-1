@@ -16,6 +16,84 @@ def load_test_cases(json_file_path):
         test_cases = json.load(file)
     return test_cases
 
+def prepare_checks_text(check_results):
+    # Prepare failed checks and all checks as readable text
+
+    failed_checks = []
+    all_checks = []
+
+    for check in check_results:
+        check_type = check["type"]
+        check_passed = check["passed"]
+        check_details = check["details"]
+
+        if check_passed:
+            check_status = "PASSED"
+        else:
+            check_status = "FAILED"
+
+        check_text = check_status + ": " + check_type + " - " + check_details
+        all_checks.append(check_text)
+
+        if not check_passed:
+            failed_checks.append(check_text)
+
+    return failed_checks, all_checks
+
+
+def create_review_note(passed, failed_checks):
+    """Create a simple QA note to explain what to do with the result."""
+
+    if passed:
+        return "Passed. No action needed."
+
+    failed_checks_text = " ".join(failed_checks).lower()
+
+    if "expected phrases" in failed_checks_text:
+        return "Possible evaluator issue. Response may be correct, but expected phrases should be reviewed."
+
+    if "forbidden" in failed_checks_text:
+        return "Possible model issue. Response may contain forbidden content."
+
+    if "json" in failed_checks_text:
+        return "Possible format issue. Check JSON format and required fields."
+
+    if "latency" in failed_checks_text:
+        return "Performance issue. Response time is higher than expected."
+
+    return "Failed. Manual review needed: check prompt, response, and failed checks."
+
+def calculate_metrics(results):
+    # calculate simplified style metrics for check results
+
+    total_checks = 0
+    passed_checks = 0
+    failed_checks = 0
+
+    for result in results:
+        for check in result["check_results"]:
+            total_checks += 1
+
+            if check["passed"]:
+                passed_checks += 1
+            else:
+                failed_checks += 1
+
+    if total_checks > 0:
+        accuracy = passed_checks / total_checks
+    else:
+        accuracy = 0
+
+    metrics = {
+        "total_checks": total_checks,
+        "passed_checks": passed_checks,
+        "failed_checks": failed_checks,
+        "accuracy": round(accuracy, 3),
+        "accuracy_percent": round(accuracy * 100, 1),
+    }
+
+    return metrics
+
 def save_reports(results):
     reports_directory = Path(REPORTS_DIRECTORY)
     reports_directory.mkdir(exist_ok=True)
@@ -48,7 +126,8 @@ def save_reports(results):
             "prompt",
             "response",
             "failed_checks",
-            "all_checks"
+            "all_checks",
+            "review_note"
         ])
 
         for result in results:
@@ -57,24 +136,12 @@ def save_reports(results):
             else:
                 status = "FAILED"
 
-            failed_checks = []
-            all_checks = []
+            failed_checks, all_checks = prepare_checks_text(result["check_results"])
 
-            for check in result["check_results"]:
-                check_type = check["type"]
-                check_passed = check["passed"]
-                check_details = check["details"]
-
-                if check_passed:
-                    check_status = "PASSED"
-                else:
-                    check_status = "FAILED"
-
-                check_text = check_status + ": " + check_type + " - " + check_details
-                all_checks.append(check_text)
-
-                if not check_passed:
-                    failed_checks.append(check_text)
+            review_note = create_review_note(
+                result["passed"],
+                failed_checks
+            )
 
             writer.writerow([
                 result["id"],
@@ -86,13 +153,14 @@ def save_reports(results):
                 result["prompt"],
                 result["response"],
                 " | ".join(failed_checks),
-                " | ".join(all_checks)
+                " | ".join(all_checks),
+                review_note
             ])
 
     return json_path, csv_path
 
 def run(mock=False):
-    """Run all AI evaluation tests and return an exit code."""
+    # Run all AI evaluation tests and return an exit code.
 
     # Choose which model client to use
     if mock:
@@ -152,7 +220,6 @@ def run(mock=False):
         # Add the current result to the list of all results
         results.append(result)
 
-        # Print whether the test passed or failed
         if result["passed"]:
             status = "PASSED"
         else:
@@ -179,10 +246,17 @@ def run(mock=False):
 
     # Print the final summary
     print("\n=== Summary ===")
-    print(f"Passed: {passed_count}/{len(results)}")
-    print(f"Pass rate: {pass_rate:.1f}%")
+    print(f"Test cases passed: {passed_count}/{len(results)}")
+    print(f"Test case pass rate: {pass_rate:.1f}%")
     print(f"JSON report: {json_path}")
     print(f"CSV report: {csv_path}")
+
+    metrics = calculate_metrics(results)
+    print("\n=== Metrics ===")
+    print(f"Total checks: {metrics['total_checks']}")
+    print(f"Passed checks: {metrics['passed_checks']}")
+    print(f"Failed checks: {metrics['failed_checks']}")
+    print(f"Accuracy: {metrics['accuracy_percent']}%")
 
     # Return 0 if all tests passed.
     # Return 1 if at least one test failed.

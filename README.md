@@ -1,83 +1,169 @@
-# AI Eval Project — version 1
+# AI Eval Level 1
 
-A small API-based AI evaluation project for a manual QA engineer who is starting Python automation.
+Beginner AI evaluation project for testing LLM responses with Python.
 
-## What this version checks
+The project sends prompts to a model, checks the responses with simple rule-based evaluators, and creates JSON/CSV reports with results, failed checks, review notes, and metrics.
 
-- Factuality using required and forbidden phrases
+## What this project checks
+
+- Factual correctness using expected and forbidden phrases
 - Instruction following
 - Basic safety behavior
-- Empty responses
+- Prompt injection protection
+- Structured JSON output
+- Required JSON fields
 - Response length
 - Response latency
-- Overall pass rate
+- Simple robustness checks
 
-Test cases are stored in `test_cases/test_cases.json`. You can add a new test without changing Python code.
+Test cases are stored in:
+
+```text
+test_cases/test_cases.json
+```
+
+You can add new test cases without changing Python code.
 
 ## Project structure
 
 ```text
 ai-eval-level-1/
+├── .github/
+├── reports/
+├── test_cases/
+│   └── test_cases.json
+├── tests/
+├── .env
+├── .env.example
+├── .gitignore
 ├── config.py
 ├── evaluators.py
 ├── model_client.py
-├── run_evals.py
-├── test_cases/test_cases.json
-├── tests/test_evaluators.py
-├── reports/
-├── .env.example
-└── requirements.txt
+├── pytest.ini
+├── README.md
+├── requirements.txt
+└── run_evals.py
 ```
 
-## Run in PyCharm
+## How to run
 
-1. Open the project folder in PyCharm.
-2. Create a virtual environment with Python 3.11 or newer.
-3. Open the PyCharm terminal and run:
+Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-4. Copy `.env.example` to `.env`.
-5. Add your OpenRouter API key to `.env`.
-6. Run without API costs first:
+Run with fake model:
 
 ```bash
 python run_evals.py --mock
 ```
 
-7. Run against the configured OpenRouter model:
+Run with real model:
 
 ```bash
 python run_evals.py
 ```
 
-8. Run unit tests:
+Run unit tests:
 
 ```bash
-pytest -v
+pytest
 ```
 
-## Add a new test
+## Reports
 
-Add another object to `test_cases/test_cases.json`:
+After each run, reports are created in the `reports/` folder:
+
+```text
+report_YYYYMMDD_HHMMSS.json
+report_YYYYMMDD_HHMMSS.csv
+```
+
+The CSV report includes:
+
+- `status` — PASSED or FAILED
+- `prompt` — input sent to the model
+- `response` — model answer
+- `failed_checks` — checks that failed
+- `all_checks` — all executed checks
+- `review_note` — short QA explanation of what to review
+
+## Metrics
+
+The project shows two result levels.
+
+### Test case summary
+
+Shows how many full test cases passed.
+
+Example:
+
+```text
+Test cases passed: 11/14
+Test case pass rate: 78.6%
+```
+
+A test case fails if at least one check inside it fails.
+
+### Check-level metrics
+
+Shows how many individual checks passed.
+
+Example:
+
+```text
+Total checks: 44
+Passed checks: 40
+Failed checks: 4
+Accuracy: 90.9%
+```
+
+In this project, accuracy means:
+
+```text
+passed checks / total checks
+```
+
+This is a simplified CT-AI style metric for a beginner LLM evaluation project.
+
+## How to interpret failed results
+
+A failed result does not always mean that the model is bad.
+
+A failure can mean:
+
+- model issue — the response is incorrect, unsafe, or does not follow instructions
+- evaluator issue — the response may be correct, but the check is too strict
+- prompt issue — the prompt does not clearly define the expected answer or format
+
+Use `failed_checks`, `response`, and `review_note` to understand what should be fixed.
+
+## Add a new test case
+
+Add a new object to `test_cases/test_cases.json`:
 
 ```json
 {
   "id": "NEW-001",
-  "name": "My new test",
+  "name": "Exact instruction following",
   "category": "instruction_following",
   "prompt": "Reply with exactly: READY",
   "temperature": 0.0,
   "checks": [
-    {"type": "exact_match", "value": "READY"},
-    {"type": "latency_under_seconds", "value": 20}
+    {
+      "type": "exact_match",
+      "value": "READY"
+    },
+    {
+      "type": "latency_under_seconds",
+      "value": 20
+    }
   ]
 }
 ```
 
-Available checks:
+## Available checks
 
 - `non_empty`
 - `contains_all`
@@ -86,7 +172,22 @@ Available checks:
 - `exact_match`
 - `max_words`
 - `latency_under_seconds`
+- `valid_json`
+- `json_has_fields`
 
 ## Important limitation
 
-Keyword checks are transparent and easy to debug, but they cannot reliably judge meaning. 
+This project uses simple keyword and rule-based checks.  
+They are easy to understand and debug, but they cannot fully judge meaning.
+
+For this reason, failed results should be manually reviewed before deciding whether the issue is in the model, prompt, or evaluator.
+
+## Tech stack
+
+- Python
+- Pytest
+- JSON test cases
+- CSV and JSON reports
+- Mock model client
+- OpenRouter model client
+- GitHub Actions CI
